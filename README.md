@@ -158,7 +158,7 @@ crm-mvp/
 
 **Jhonata Rusaffa**
 - [GitHub](https://github.com/jntcode)
-- [LinkedIn](https://www.linkedin.com/in/jhonata-silva-181675373/)
+- [LinkedIn](https://www.linkedin.com/in/jhonata-rusaffa/)
 
 ## License
 
