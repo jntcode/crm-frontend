@@ -27,3 +27,9 @@ export type PipelineBreakdown = {
   won: number;
   lost: number;
 };
+
+export type RevenuePoint = {
+  month: string;
+  label: string;
+  revenue: number;
+};

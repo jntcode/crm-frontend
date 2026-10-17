@@ -1,10 +1,10 @@
 "use client";
 
 import { ProtectedRoute } from "@/components/protected-route";
-import { getDashboardStats, getPipelineBreakdown } from "@/lib/dashboard";
+import { getDashboardStats, getPipelineBreakdown, getMonthlyRevenue } from "@/lib/dashboard";
 import { getLeads } from "@/lib/leads";
 import { getActivities } from "@/lib/activities";
-import { DashboardStats, PipelineBreakdown } from "@/types/email";
+import { DashboardStats, PipelineBreakdown, RevenuePoint } from "@/types/email";
 import { Lead } from "@/types/lead";
 import { Activity } from "@/types/activity";
 import { useQuery } from "@tanstack/react-query";
@@ -25,6 +25,11 @@ function ReportsContent() {
   const { data: pipeline } = useQuery<PipelineBreakdown>({
     queryKey: ["pipeline-breakdown"],
     queryFn: getPipelineBreakdown,
+  });
+
+  const { data: revenue = [] } = useQuery<RevenuePoint[]>({
+    queryKey: ["dashboard-revenue"],
+    queryFn: getMonthlyRevenue,
   });
 
   const { data: leads = [] } = useQuery<Lead[]>({
@@ -56,6 +61,8 @@ function ReportsContent() {
   }, {});
   const activityData = Object.entries(activityTypes).map(([name, count]) => ({ name, count }));
 
+  const hasRevenueData = revenue.some((point) => point.revenue > 0);
+
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-[var(--background)]">
@@ -70,7 +77,7 @@ function ReportsContent() {
           {/* KPI Cards */}
           <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {[
-              { label: "Total Revenue", value: `$${(stats?.monthlyRevenue ?? 0).toLocaleString()}`, color: "from-emerald-500/20 to-emerald-600/10" },
+              { label: "Won This Month", value: `$${(stats?.monthlyRevenue ?? 0).toLocaleString()}`, color: "from-emerald-500/20 to-emerald-600/10" },
               { label: "Win Rate", value: `${stats?.conversionRate ?? 0}%`, color: "from-sky-500/20 to-sky-600/10" },
               { label: "Open Deals", value: stats?.totalDeals ?? 0, color: "from-violet-500/20 to-violet-600/10" },
               { label: "Active Leads", value: leads.filter((l) => l.status !== "WON" && l.status !== "LOST").length, color: "from-amber-500/20 to-amber-600/10" },
@@ -96,29 +103,29 @@ function ReportsContent() {
               transition={{ delay: 0.2 }}
               className="rounded-2xl border border-[var(--border)] bg-[var(--panel)] p-6"
             >
-              <h2 className="text-lg font-semibold text-[var(--foreground)] mb-4">Revenue Trend</h2>
-              <ResponsiveContainer width="100%" height={300}>
-                <AreaChart data={[
-                  { month: "Jan", revenue: 12400 },
-                  { month: "Feb", revenue: 18200 },
-                  { month: "Mar", revenue: 15800 },
-                  { month: "Apr", revenue: 22400 },
-                  { month: "May", revenue: 19600 },
-                  { month: "Jun", revenue: stats?.monthlyRevenue ?? 24800 },
-                ]}>
-                  <defs>
-                    <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="month" tick={{ fill: "var(--muted)", fontSize: 12 }} />
-                  <YAxis tick={{ fill: "var(--muted)", fontSize: 12 }} />
-                  <Tooltip contentStyle={{ backgroundColor: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12 }} />
-                  <Area type="monotone" dataKey="revenue" stroke="#6366f1" fill="url(#revGrad)" strokeWidth={2} />
-                </AreaChart>
-              </ResponsiveContainer>
+              <h2 className="text-lg font-semibold text-[var(--foreground)]">Won Deal Value by Month</h2>
+              <p className="mb-4 text-xs text-[var(--muted)]">Total value of leads marked WON, grouped by creation date (last 6 months).</p>
+              {hasRevenueData ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <AreaChart data={revenue}>
+                    <defs>
+                      <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                    <XAxis dataKey="label" tick={{ fill: "var(--muted)", fontSize: 12 }} />
+                    <YAxis tick={{ fill: "var(--muted)", fontSize: 12 }} />
+                    <Tooltip contentStyle={{ backgroundColor: "var(--panel)", border: "1px solid var(--border)", borderRadius: 12 }} />
+                    <Area type="monotone" dataKey="revenue" stroke="#6366f1" fill="url(#revGrad)" strokeWidth={2} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-[300px] items-center justify-center rounded-xl border border-dashed border-[var(--border)]">
+                  <p className="text-sm text-[var(--muted)]">No won deal value in the last 6 months. Mark leads as WON to see the trend.</p>
+                </div>
+              )}
             </motion.div>
 
             {/* Pipeline Distribution */}

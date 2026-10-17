@@ -1,5 +1,5 @@
 import { authFetch } from "@/lib/auth";
-import { DashboardStats, PipelineBreakdown } from "@/types/email";
+import { DashboardStats, PipelineBreakdown, RevenuePoint } from "@/types/email";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080/api";
 
@@ -29,4 +29,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
 export async function getPipelineBreakdown(): Promise<PipelineBreakdown> {
   return apiFetch<PipelineBreakdown>(`${API_BASE_URL}/dashboard/pipeline-breakdown`);
+}
+
+export async function getMonthlyRevenue(): Promise<RevenuePoint[]> {
+  return apiFetch<RevenuePoint[]>(`${API_BASE_URL}/dashboard/revenue`);
 }

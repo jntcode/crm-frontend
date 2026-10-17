@@ -3,33 +3,11 @@
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageSwitcher } from "@/components/language-switcher";
-import { getAuthSession, setDemoSession } from "@/lib/auth";
+import { getAuthSession, demoLogin } from "@/lib/auth";
 import { useI18n } from "@/lib/i18n/context";
-import { useState, useRef, useMemo, useEffect } from "react";
+import { useState, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { motion, useInView, useScroll, useTransform } from "framer-motion";
-
-function useAnimatedCounter(end: number, duration: number = 2000, inView: boolean = false) {
-  const [count, setCount] = useState(0);
-
-  useEffect(() => {
-    if (!inView) return;
-    let start = 0;
-    const increment = end / (duration / 16);
-    const timer = setInterval(() => {
-      start += increment;
-      if (start >= end) {
-        setCount(end);
-        clearInterval(timer);
-      } else {
-        setCount(Math.floor(start));
-      }
-    }, 16);
-    return () => clearInterval(timer);
-  }, [end, duration, inView]);
-
-  return count;
-}
 
 const fadeUp = {
   hidden: { opacity: 0, y: 40 },
@@ -44,6 +22,7 @@ const scaleIn = {
 export default function Home() {
   const router = useRouter();
   const { t } = useI18n();
+  const [demoError, setDemoError] = useState("");
   const heroRef = useRef(null);
   const statsRef = useRef(null);
   const featuresRef = useRef(null);
@@ -68,10 +47,6 @@ export default function Home() {
     if (typeof window === "undefined") return null;
     return getAuthSession();
   }, []);
-
-  const counter1 = useAnimatedCounter(100, 2000, statsInView);
-  const counter2 = useAnimatedCounter(500, 2000, statsInView);
-  const counter3 = useAnimatedCounter(99, 2000, statsInView);
 
   const features = [
     {
@@ -276,14 +251,22 @@ export default function Home() {
             </Link>
             <button
               onClick={async () => {
-                await setDemoSession();
-                router.push("/dashboard");
+                setDemoError("");
+                try {
+                  await demoLogin();
+                  router.push("/dashboard");
+                } catch (err) {
+                  setDemoError(err instanceof Error ? err.message : "Demo login failed");
+                }
               }}
               className="inline-flex items-center justify-center rounded-xl border border-[var(--border)] px-8 py-4 text-base font-semibold text-[var(--foreground)] hover:bg-[var(--soft)] transition"
             >
               {t("tryDemo")}
             </button>
           </motion.div>
+          {demoError ? (
+            <p className="mt-3 text-center text-sm text-rose-400">{demoError}</p>
+          ) : null}
         </div>
 
         <motion.div
@@ -314,7 +297,7 @@ export default function Home() {
           >
             <div className="text-center">
               <p className="text-5xl font-bold text-[var(--foreground)] mb-2">
-                {counter1}<span className="text-[var(--accent)]">+</span>
+                {t("statValue1")}
               </p>
               <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
                 {t("statContacts")}
@@ -322,7 +305,7 @@ export default function Home() {
             </div>
             <div className="text-center">
               <p className="text-5xl font-bold text-[var(--foreground)] mb-2">
-                {counter2}<span className="text-[var(--accent)]">+</span>
+                {t("statValue2")}
               </p>
               <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
                 {t("statDeals")}
@@ -330,7 +313,7 @@ export default function Home() {
             </div>
             <div className="text-center">
               <p className="text-5xl font-bold text-[var(--foreground)] mb-2">
-                {counter3}<span className="text-[var(--accent)]">%</span>
+                {t("statValue3")}
               </p>
               <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[var(--muted)]">
                 {t("statUptime")}

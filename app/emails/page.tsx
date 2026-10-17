@@ -4,6 +4,8 @@ import { ProtectedRoute } from "@/components/protected-route";
 import { useToast } from "@/components/toast";
 import { getEmails } from "@/lib/emails";
 import { createEmail, deleteEmail } from "@/lib/email-actions";
+import { isEmailSendingConfigured, sendEmail } from "@/lib/email-service";
+import { getAuthSession } from "@/lib/auth";
 import { Email } from "@/types/email";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -22,19 +24,59 @@ export default function EmailsPage() {
   const { showToast } = useToast();
   const queryClient = useQueryClient();
   const [showCompose, setShowCompose] = useState(false);
+  const providerConfigured = isEmailSendingConfigured();
 
   const { data: emails = [], isLoading } = useQuery<Email[]>({
     queryKey: ["emails"],
     queryFn: getEmails,
   });
 
-  const sendMutation = useMutation({
+  const logMutation = useMutation({
     mutationFn: (data: EmailFormData) =>
-      createEmail({ customerId: "", ...data, fromAddress: "user@crm.app", status: "SENT" }),
+      createEmail({
+        customerId: "",
+        ...data,
+        fromAddress: getAuthSession()?.email ?? "user@crm.app",
+        status: "SENT",
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["emails"] });
-      showToast("Email sent");
+      showToast("Email logged to CRM history");
       setShowCompose(false);
+      reset();
+    },
+    onError: (err) => {
+      showToast(err instanceof Error ? err.message : "Failed to log email", "error");
+    },
+  });
+
+  const sendMutation = useMutation({
+    mutationFn: async (data: EmailFormData) => {
+      const session = getAuthSession();
+      await sendEmail({
+        to: data.toAddress,
+        subject: data.subject,
+        body: data.body,
+        fromName: session?.email ?? "CRM",
+      });
+      return createEmail({
+        customerId: "",
+        ...data,
+        fromAddress: session?.email ?? "user@crm.app",
+        status: "SENT",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["emails"] });
+      showToast("Email sent and logged");
+      setShowCompose(false);
+      reset();
+    },
+    onError: (err) => {
+      showToast(
+        err instanceof Error ? err.message : "Failed to send email — nothing was recorded",
+        "error"
+      );
     },
   });
 
@@ -50,11 +92,6 @@ export default function EmailsPage() {
     resolver: zodResolver(emailSchema),
     defaultValues: { toAddress: "", subject: "", body: "" },
   });
-
-  function onSubmit(data: EmailFormData) {
-    sendMutation.mutate(data);
-    reset();
-  }
 
   return (
     <ProtectedRoute>
@@ -75,7 +112,12 @@ export default function EmailsPage() {
           {showCompose && (
             <section className="mb-8 rounded-2xl border border-[var(--border)] bg-[var(--panel)] p-6 shadow-[0_10px_25px_var(--shadow)]">
               <h2 className="text-xl font-semibold text-[var(--foreground)]">Compose email</h2>
-              <form onSubmit={handleSubmit(onSubmit)} className="mt-5 space-y-4">
+              <p className="mt-1 text-sm text-[var(--muted)]">
+                {providerConfigured
+                  ? "Send & log delivers through EmailJS, then records it. Log email records only (for mail you sent elsewhere)."
+                  : "Email sending is not configured in this environment. You can still log emails you send through another mail client."}
+              </p>
+              <form onSubmit={handleSubmit((data) => logMutation.mutate(data))} className="mt-5 space-y-4">
                 <div>
                   <input {...register("toAddress")} type="email" className="w-full rounded-xl border border-[var(--border)] bg-[var(--soft)] px-3 py-2.5 text-[var(--foreground)]" placeholder="To address" />
                   {errors.toAddress && <p className="mt-1 text-xs text-rose-400">{errors.toAddress.message}</p>}
@@ -88,9 +130,21 @@ export default function EmailsPage() {
                   <textarea {...register("body")} className="min-h-32 w-full rounded-xl border border-[var(--border)] bg-[var(--soft)] px-3 py-2.5 text-[var(--foreground)]" placeholder="Body" />
                   {errors.body && <p className="mt-1 text-xs text-rose-400">{errors.body.message}</p>}
                 </div>
-                <button type="submit" disabled={sendMutation.isPending} className="rounded-xl bg-[var(--button)] px-4 py-2.5 text-sm font-semibold text-[var(--button-text)] active:scale-[0.98] disabled:opacity-50">
-                  {sendMutation.isPending ? "..." : "Send"}
-                </button>
+                <div className="flex gap-3">
+                  <button type="submit" disabled={logMutation.isPending || sendMutation.isPending} className="rounded-xl bg-[var(--button)] px-4 py-2.5 text-sm font-semibold text-[var(--button-text)] active:scale-[0.98] disabled:opacity-50">
+                    {logMutation.isPending ? "..." : "Log email"}
+                  </button>
+                  {providerConfigured && (
+                    <button
+                      type="button"
+                      onClick={handleSubmit((data) => sendMutation.mutate(data))}
+                      disabled={logMutation.isPending || sendMutation.isPending}
+                      className="rounded-xl border border-[var(--border)] bg-[var(--soft)] px-4 py-2.5 text-sm font-semibold text-[var(--foreground)] active:scale-[0.98] disabled:opacity-50"
+                    >
+                      {sendMutation.isPending ? "Sending..." : "Send & log"}
+                    </button>
+                  )}
+                </div>
               </form>
             </section>
           )}
