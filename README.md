@@ -46,12 +46,12 @@
 - **Company Directory** — Industry tracking and deal aggregation
 - **Task Management** — Priorities, due dates, assignment tracking
 - **Activity Logging** — Calls, emails, meetings, notes per customer
-- **Email Tracking** — Log and track email conversations
+- **Email Tracking** — Log emails you sent elsewhere; optional real sending via EmailJS when configured
 
 ### Dashboard & Analytics
 - **Stats Cards** — Animated counters with click-through navigation
 - **Pipeline Donut Chart** — Lead distribution by status
-- **Revenue Trend** — Area chart showing monthly revenue
+- **Won Deal Value by Month** — Area chart of real WON lead value from the API (last 6 months)
 - **Deal Distribution** — Bar chart by company
 - **Conversion Funnel** — Animated stage-by-stage breakdown
 - **Activity Feed** — Recent 5 activities with type badges
@@ -85,13 +85,45 @@ Open [http://localhost:3000](http://localhost:3000)
 ### Backend
 ```bash
 cd crm-backend
-./mvnw spring-boot:run
+mvn spring-boot:run
 ```
 API available at [http://localhost:8080/api](http://localhost:8080/api)
 
-### Default Login
+### Default Login (dev backend only)
 - **Email:** admin@crm.com
 - **Password:** secret123
+
+The backend seeds this account only in the `dev` profile. In production there
+is no shared account — register your own or configure the demo env vars below.
+
+## Environment Variables (frontend)
+
+Copy `.env.example` to `.env.local`. All values are optional.
+
+| Variable | Description |
+|----------|-------------|
+| `NEXT_PUBLIC_API_URL` | Backend base URL (default `http://localhost:8080/api`) |
+| `NEXT_PUBLIC_AUTH_API_URL` | Auth base URL (default `http://localhost:8080/api/auth`) |
+| `NEXT_PUBLIC_DEMO_EMAIL` | Demo account email — enables the "Try Demo" button |
+| `NEXT_PUBLIC_DEMO_PASSWORD` | Demo account password (must match a real backend account) |
+| `NEXT_PUBLIC_GOOGLE_CLIENT_ID` | Shows the Google Sign-In button on the login page |
+| `NEXT_PUBLIC_EMAILJS_SERVICE_ID` | EmailJS service — enables real "Send & log" |
+| `NEXT_PUBLIC_EMAILJS_TEMPLATE_ID` | EmailJS template |
+| `NEXT_PUBLIC_EMAILJS_PUBLIC_KEY` | EmailJS public key |
+
+Without the EmailJS variables the emails page only **logs** emails and says so
+honestly — it never pretends a message was delivered.
+
+## Testing
+
+```bash
+npm test
+```
+
+Covers session lifecycle (logout wipes user-scoped storage and caches,
+account switch clears the previous user), `authFetch` 401 handling, the email
+service (throws when unconfigured), and the emails page compose flow (honest
+toasts, validation). CI runs lint, tests, and a production build.
 
 ## API Endpoints
 
@@ -108,9 +140,8 @@ API available at [http://localhost:8080/api](http://localhost:8080/api)
 | GET/POST | `/api/activities` | List/Create activities |
 | GET/POST | `/api/emails` | List/Create email logs |
 | GET | `/api/dashboard/stats` | Dashboard statistics |
-| GET | `/api/dashboard/pipeline` | Pipeline breakdown |
-| GET | `/api/dashboard/revenue` | Revenue by month |
-| GET | `/api/dashboard/activities/recent` | Recent activities |
+| GET | `/api/dashboard/pipeline-breakdown` | Pipeline breakdown |
+| GET | `/api/dashboard/revenue` | Won lead value by month (last 6 months) |
 
 ## Project Structure
 
