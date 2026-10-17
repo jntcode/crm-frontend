@@ -1,10 +1,9 @@
-const CACHE_NAME = "crm-v1";
-const STATIC_ASSETS = ["/dashboard", "/manifest.json"];
-const OFFLINE_PAGE = "/offline";
+const CACHE_NAME = "crm-v2";
+const STATIC_ASSETS = ["/manifest.json"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll([...STATIC_ASSETS, OFFLINE_PAGE]))
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS))
   );
   self.skipWaiting();
 });
@@ -24,10 +23,9 @@ self.addEventListener("fetch", (event) => {
 
   if (request.method !== "GET") return;
 
-  if (url.pathname.startsWith("/api/")) {
-    event.respondWith(networkFirst(request));
-    return;
-  }
+  // Never intercept API requests: authenticated CRM responses contain private
+  // data and must not be written to Cache Storage or replayed offline.
+  if (url.pathname.startsWith("/api/")) return;
 
   if (/\.(js|css|png|jpg|jpeg|gif|svg|ico|woff2?)$/.test(url.pathname)) {
     event.respondWith(cacheFirst(request));
@@ -62,8 +60,6 @@ async function networkFirst(request) {
     return response;
   } catch {
     const cached = await caches.match(request);
-    if (cached) return cached;
-    const offline = await caches.match(OFFLINE_PAGE);
-    return offline || new Response("Offline", { status: 503 });
+    return cached || new Response("Offline", { status: 503 });
   }
 }

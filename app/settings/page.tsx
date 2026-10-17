@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ProtectedRoute } from "@/components/protected-route";
 import { useToast } from "@/components/toast";
-import { getAuthSession, authFetch } from "@/lib/auth";
+import { getAuthSession, setAuthSession, authFetch } from "@/lib/auth";
 import { AvatarUpload } from "@/components/avatar-upload";
 import { useI18n } from "@/lib/i18n/context";
 import { motion } from "framer-motion";
@@ -26,16 +26,27 @@ function SettingsContent() {
     e.preventDefault();
     setSaving(true);
     try {
-      await authFetch("/api/auth/profile", {
+      const response = await authFetch("/api/auth/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, email }),
       });
-      const updated = { ...session, name, email };
-      localStorage.setItem("crm_session", JSON.stringify(updated));
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Profile update failed");
+      }
+      const updated = (await response.json()) as { token?: string; name: string; email: string };
+      if (session) {
+        setAuthSession({
+          ...session,
+          token: updated.token ?? session.token,
+          name: updated.name,
+          email: updated.email,
+        });
+      }
       showToast("Profile updated successfully");
-    } catch {
-      showToast("Failed to update profile");
+    } catch (err) {
+      showToast(err instanceof Error && err.message ? err.message : "Failed to update profile");
     } finally {
       setSaving(false);
     }
@@ -53,17 +64,21 @@ function SettingsContent() {
     }
     setChangingPassword(true);
     try {
-      await authFetch("/api/auth/password", {
+      const response = await authFetch("/api/auth/password", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ currentPassword, newPassword }),
       });
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Password change failed");
+      }
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
       showToast("Password changed successfully");
-    } catch {
-      showToast("Failed to change password");
+    } catch (err) {
+      showToast(err instanceof Error && err.message ? err.message : "Failed to change password");
     } finally {
       setChangingPassword(false);
     }

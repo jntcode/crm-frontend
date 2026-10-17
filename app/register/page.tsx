@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { registerUser, setAuthSession } from "@/lib/auth";
+import { registerUser, startSession } from "@/lib/auth";
 import { motion } from "framer-motion";
 import { useI18n } from "@/lib/i18n/context";
 import { LanguageSwitcher } from "@/components/language-switcher";
@@ -11,9 +11,9 @@ import { LanguageSwitcher } from "@/components/language-switcher";
 export default function RegisterPage() {
   const router = useRouter();
   const { t } = useI18n();
-  const [name, setName] = useState("Alicia Johnson");
-  const [email, setEmail] = useState("alicia@crm.com");
-  const [password, setPassword] = useState("secret123");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -24,7 +24,7 @@ export default function RegisterPage() {
 
     try {
       const session = await registerUser({ name, email, password });
-      setAuthSession({
+      await startSession({
         token: session.token,
         name: session.name,
         email: session.email,

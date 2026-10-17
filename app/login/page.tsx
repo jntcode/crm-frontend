@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
-import { loginUser, setAuthSession, setDemoSession, googleLogin } from "@/lib/auth";
+import { loginUser, startSession, demoLogin, googleLogin } from "@/lib/auth";
 import { motion } from "framer-motion";
 import { useI18n } from "@/lib/i18n/context";
 import { LanguageSwitcher } from "@/components/language-switcher";
@@ -11,8 +11,8 @@ import { LanguageSwitcher } from "@/components/language-switcher";
 export default function LoginPage() {
   const router = useRouter();
   const { t } = useI18n();
-  const [email, setEmail] = useState("admin@crm.com");
-  const [password, setPassword] = useState("secret123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
@@ -24,7 +24,7 @@ export default function LoginPage() {
 
     try {
       const session = await loginUser({ email, password });
-      setAuthSession({
+      await startSession({
         token: session.token,
         name: session.name,
         email: session.email,
@@ -38,8 +38,16 @@ export default function LoginPage() {
   }
 
   async function handleDemoLogin() {
-    await setDemoSession();
-    router.push("/dashboard");
+    setError("");
+    setIsSubmitting(true);
+    try {
+      await demoLogin();
+      router.push("/dashboard");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Demo login failed");
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   useEffect(() => {
@@ -134,7 +142,8 @@ export default function LoginPage() {
           <button
             type="button"
             onClick={handleDemoLogin}
-            className="w-full rounded-xl border-2 border-[var(--border)] bg-[var(--soft)] px-4 py-3 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)]/40 hover:bg-[var(--soft-strong)] active:scale-[0.98]"
+            disabled={isSubmitting}
+            className="w-full rounded-xl border-2 border-[var(--border)] bg-[var(--soft)] px-4 py-3 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)]/40 hover:bg-[var(--soft-strong)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
           >
             {t("tryDemo")}
           </button>
@@ -173,7 +182,7 @@ export default function LoginPage() {
                     });
                     if (credential) {
                       const session = await googleLogin(credential);
-                      setAuthSession(session);
+                      await startSession(session);
                       router.push("/dashboard");
                     }
                   } catch {

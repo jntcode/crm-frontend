@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { clearAuthSession, getAuthSession } from "@/lib/auth";
+import { endSession, getAuthSession } from "@/lib/auth";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LanguageSwitcher } from "@/components/language-switcher";
 import { NotificationBell } from "@/components/notifications";
@@ -32,8 +32,9 @@ export function Sidebar({ mobileOpen, onCloseMobile }: SidebarProps) {
   const { t } = useI18n();
 
   function handleLogout() {
-    clearAuthSession();
-    router.push("/login");
+    void endSession().finally(() => {
+      router.push("/login");
+    });
   }
 
   function handleNavClick() {

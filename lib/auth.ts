@@ -1,3 +1,5 @@
+import { queryClient } from "./query-client";
+
 export type AuthSession = {
   token: string;
   name: string;
@@ -8,6 +10,65 @@ export type AuthSession = {
 const AUTH_STORAGE_KEY = "crm-auth";
 const AUTH_API_BASE_URL = process.env.NEXT_PUBLIC_AUTH_API_URL ?? "http://localhost:8080/api/auth";
 
+const DEMO_EMAIL = process.env.NEXT_PUBLIC_DEMO_EMAIL ?? "";
+const DEMO_PASSWORD = process.env.NEXT_PUBLIC_DEMO_PASSWORD ?? "";
+
+/**
+ * Local storage keys that hold data belonging to the signed-in user. Theme and
+ * locale keys are deliberately excluded so they survive logout.
+ */
+export const USER_SCOPED_STORAGE_KEYS = [
+  "crm-cache",
+  "crm_session",
+  "crm-notifications",
+  "crm-avatar",
+] as const;
+
+export function isDemoConfigured(): boolean {
+  return Boolean(DEMO_EMAIL && DEMO_PASSWORD);
+}
+
+/**
+ * Removes every piece of user-scoped client state: persisted React Query data,
+ * the legacy session copy, notifications, avatar and any service-worker cached
+ * responses (including old cached API payloads).
+ */
+export async function clearUserScopedState(): Promise<void> {
+  if (typeof window === "undefined") return;
+
+  for (const key of USER_SCOPED_STORAGE_KEYS) {
+    window.localStorage.removeItem(key);
+  }
+  queryClient.clear();
+
+  if (typeof caches !== "undefined") {
+    try {
+      const keys = await caches.keys();
+      await Promise.all(keys.map((key) => caches.delete(key)));
+    } catch (error) {
+      console.warn("Could not clear service worker caches", error);
+    }
+  }
+}
+
+/**
+ * Starts a session for a freshly authenticated user after wiping any state
+ * left behind by a previous account (login and logout both funnel through
+ * here, so account switching can never show another user's data).
+ */
+export async function startSession(session: AuthSession): Promise<void> {
+  await clearUserScopedState();
+  setAuthSession(session);
+}
+
+/**
+ * Full logout: clears the session token and all user-scoped client state.
+ */
+export async function endSession(): Promise<void> {
+  clearAuthSession();
+  await clearUserScopedState();
+}
+
 export async function authFetch(url: string, options: RequestInit = {}) {
   const session = getAuthSession();
   const headers = new Headers(options.headers || {});
@@ -16,7 +77,16 @@ export async function authFetch(url: string, options: RequestInit = {}) {
     headers.set("Authorization", `Bearer ${session.token}`);
   }
 
-  return fetch(url, { ...options, headers });
+  const response = await fetch(url, { ...options, headers });
+
+  if (response.status === 401 && session?.token) {
+    await endSession();
+    if (typeof window !== "undefined") {
+      window.location.assign("/login");
+    }
+  }
+
+  return response;
 }
 
 export function getAuthSession(): AuthSession | null {
@@ -93,27 +163,30 @@ export async function googleLogin(idToken: string): Promise<AuthSession> {
   return (await response.json()) as AuthSession;
 }
 
-export async function setDemoSession(): Promise<void> {
-  const demoEmail = "admin@crm.com";
-  const demoPassword = "secret123";
+/**
+ * Signs in with the demo account configured via NEXT_PUBLIC_DEMO_EMAIL /
+ * NEXT_PUBLIC_DEMO_PASSWORD. Throws when demo credentials are not configured
+ * for this environment or when the backend rejects them. Never fabricates a
+ * session client-side.
+ */
+export async function demoLogin(): Promise<void> {
+  if (!isDemoConfigured()) {
+    throw new Error("Demo login is not configured in this environment.");
+  }
 
   try {
-    const session = await loginUser({ email: demoEmail, password: demoPassword });
-    setAuthSession(session);
-  } catch {
+    const session = await loginUser({ email: DEMO_EMAIL, password: DEMO_PASSWORD });
+    await startSession(session);
+  } catch (loginError) {
     try {
       const session = await registerUser({
         name: "Demo User",
-        email: demoEmail,
-        password: demoPassword,
+        email: DEMO_EMAIL,
+        password: DEMO_PASSWORD,
       });
-      setAuthSession(session);
+      await startSession(session);
     } catch {
-      setAuthSession({
-        token: "demo-token-fallback",
-        name: "Demo User",
-        email: demoEmail,
-      });
+      throw loginError instanceof Error ? loginError : new Error("Demo login failed");
     }
   }
 }
